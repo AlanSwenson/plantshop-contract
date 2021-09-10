@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Plant Shop front-end</title>
+    <script language="javascript" type="text/javascript"
+        src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script language="javascript" type="text/javascript"
+        src="https://cdnjs.cloudflare.com/ajax/libs/web3/1.5.2/web3.min.js"></script>
+    <script language="javascript" type="text/javascript" src="plantshop_abi.js"></script>
+</head>
+
+<body>
+    <div id="txStatus"></div>
+    <div class="btn" style="background-color: aquamarine; padding: 20px; margin: auto;">Mint Button</div>
+    <div id="zombies"></div>
+
+    <script>
+        var plantShop;
+        var userAccount;
+        var accounts;
+
+        function startApp() {
+            var PlantShopAddress = "0x7DDB6B32E145D9Da5C5A5f6eA1f348CbaE13b64b";
+            plantShop = new web3.eth.Contract(PlantShopABI, PlantShopAddress);
+
+            var accountInterval = setInterval(function () {
+                web3.eth.getAccounts().then(function (acc) { accounts = acc })
+                if (accounts[0] !== userAccount) {
+                    console.log("?setting user acct")
+                    userAccount = accounts[0];
+
+                    getPlantsOwners()
+                        .then(displayPlants);
+                }
+            }, 100);
+
+            plantShop.events.Transfer({ filter: { _to: userAccount } })
+                .on("data", function (event) {
+                    let data = event.returnValues;
+                    getPlantsByOwner(userAccount).then(displayPlants);
+                }).on("error", console.error);
+
+
+            $(".btn").click(function () {
+
+                createRandomPlant(Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 5));
+            });
+        }
+
+        function displayPlants(plants) {
+            $("#zombies").empty();
+            for (i = 0; i < plants.length; i++) {
+
+                getPlantDetails(i)
+                    .then(function (plant) {
+
+
+                        $("#zombies").append(`<div class="zombie">
+              <ul>
+                <li>DNA: ${plant}</li>
+              </ul>
+            </div>`);
+                    });
+            }
+        }
+
+        function createRandomPlant(name) {
+
+
+            $("#txStatus").text("Creating new plant on the blockchain. This may take a while...");
+
+            return plantShop.methods.createRandomPlant(name)
+                .send({ from: userAccount, gas: 6721975 })
+                .on("receipt", function (receipt) {
+                    $("#txStatus").text("Successfully created " + name + "!");
+
+                    getPlantsOwners().then(displayPlants);
+                })
+                .on("error", function (error) {
+
+                    $("#txStatus").text(error);
+                });
+        }
+
+
+        function getPlantDetails(id) {
+            return plantShop.methods.plants(id).call()
+        }
+
+        function plantToOwner(id) {
+            return plantShop.methods.plantToOwner(id).call()
+        }
+
+        function getPlantsByOwner(owner) {
+            return plantShop.methods.getPlantsByOwner(owner).call()
+        }
+
+        function getPlantsOwners() {
+            return plantShop.methods.getPlantsOwners().call()
+        }
+
+        window.addEventListener('load', function () {
+
+
+            if (typeof web3 !== 'undefined') {
+
+                web3 = new Web3(web3.currentProvider);
+                console.log("connected");
+            } else {
+
+                web3 = new Web3(new Web3.providers.HttpProvider("http://127.0.0.1:8545"));
+            }
+
+
+            startApp()
+
+        })
+    </script>
+</body>
+
+</html>
